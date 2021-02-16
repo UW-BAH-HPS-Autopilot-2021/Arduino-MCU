@@ -15,6 +15,7 @@
 */
 
 #include <Arduino_LSM9DS1.h>
+#include <SensorFusion.h>
 
 void setup() {
   Serial.begin(9600);
@@ -36,8 +37,8 @@ void setup() {
 void loop() {
   float x, y, z;
 
-  if (IMU.gyroscopeAvailable()) {
-    IMU.readGyroscope(x, y, z);
+  if (IMU.accelerationAvailable()) {
+    IMU.readAcceleration(x, y, z);
 
     Serial.print(x);
     Serial.print('\t');
