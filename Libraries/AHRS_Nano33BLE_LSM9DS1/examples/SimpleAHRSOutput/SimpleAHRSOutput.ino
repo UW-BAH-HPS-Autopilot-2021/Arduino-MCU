@@ -1,5 +1,5 @@
 /*
-  Arduino LSM9DS1 - Simple Accelerometer
+  Arduino Nano 33 BLE LSM9DS1 -  Simple AHRS Output
 
   This example reads the acceleration, angular velocity, and magnetic field values from the LSM9DS1
   sensor, feeds them into a Madgwick filter algorithm, and continuously prints the resulting
