@@ -15,7 +15,7 @@
 */
 
 #include <Arduino_LSM9DS1.h>
-#include <SensorFusion.h>
+//#include <SensorFusion.h>
 
 void setup() {
   Serial.begin(9600);
@@ -40,10 +40,10 @@ void loop() {
   if (IMU.accelerationAvailable()) {
     IMU.readAcceleration(x, y, z);
 
-    Serial.print(x);
-    Serial.print('\t');
+    //Serial.print(x);
+    //Serial.print('\t');
     Serial.print(y);
-    Serial.print('\t');
-    Serial.println(z);
+   // Serial.print('\t');
+    //Serial.println(z);
   }
 }

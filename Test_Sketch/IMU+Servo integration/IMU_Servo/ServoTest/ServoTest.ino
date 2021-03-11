@@ -8,6 +8,7 @@
 */
 
 #include <Servo.h>
+#include <Arduino_LSM9DS1.h>
 //hello james
 
 Servo servoL;
@@ -20,6 +21,8 @@ Servo servoD;
 int adc_max = 1024;
 int joystick_x_90;
 int joystick_y_90;
+float roll;
+float x, y, z;
 
 int pos = 0;    // variable to store the servo position
 
@@ -31,6 +34,13 @@ void setup() {
   //set up adc read pins
   joystick_x_90 = analogRead(A1);
   joystick_y_90 = analogRead(A2);
+  roll = 0;
+  x = 0;
+  y = 0;
+  z = 0;
+  IMU.begin();  
+  IMU.gyroscopeSampleRate();
+
   
 }
 
@@ -44,6 +54,15 @@ void loop() {
 //    myservo.write(pos);              // tell servo to go to position in variable 'pos'
 //    delay(15);                       // waits 15ms for the servo to reach the position
 //  }
+
+    float k_p = 25 ;
+
+    if (IMU.accelerationAvailable()) {
+      IMU.readAcceleration(x, y, z);
+    }
+
+    roll = y * (3.1415 / 2);
+    
     double x_pos; //= (analogRead(A1)/joystick_x_90) * 90; //outputs 0 to 180 depending on the joystick position
     int x_joy;
 
@@ -68,11 +87,14 @@ void loop() {
     x_pos = x_pos/100;
     y_pos = y_pos/100;
 
+//    x_pos = x_pos + k_p*(roll);
+//    y_pos = y_pos + k_p*(roll);
             
-    servoL.write(x_pos);
-    servoR.write(180 - x_pos);
-    servoU.write(y_pos);
-    servoD.write(180 - y_pos);
+    servoL.write(x_pos + k_p*(roll));
+    servoR.write(180 - x_pos + (k_p *(roll)));
+    servoU.write(y_pos + k_p *(roll));
+    servoD.write(180 - y_pos + (k_p *(roll)));
+    //delay(10);
 
 
 }
