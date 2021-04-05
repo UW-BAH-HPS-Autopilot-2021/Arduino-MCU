@@ -23,6 +23,15 @@ int joystick_x_90;
 int joystick_y_90;
 float roll;
 float x, y, z;
+float gx, gy, gz;
+//float[] d_roll = new float[50]; 
+float integral_sum;
+float dt;
+float autopilot_output;
+float k_p = 5;
+float k_i = 0.1;
+float k_d = 10;
+
 
 int pos = 0;    // variable to store the servo position
 
@@ -39,7 +48,7 @@ void setup() {
   y = 0;
   z = 0;
   IMU.begin();  
-  IMU.gyroscopeSampleRate();
+  dt = 1 / IMU.accelerationSampleRate();
 
   
 }
@@ -55,30 +64,38 @@ void loop() {
 //    delay(15);                       // waits 15ms for the servo to reach the position
 //  }
 
-    float k_p = 25 ;
 
-    if (IMU.accelerationAvailable()) {
-      IMU.readAcceleration(x, y, z);
-    }
 
+    while(!IMU.accelerationAvailable() || !IMU.gyroscopeAvailable()){};
+
+    IMU.readAcceleration(x, y, z); //results are in G's
+    IMU.readGyroscope(gx, gy, gz); //results are in degrees/second
+    
     roll = y * (3.1415 / 2);
     
-    double x_pos; //= (analogRead(A1)/joystick_x_90) * 90; //outputs 0 to 180 depending on the joystick position
+    integral_sum = integral_sum + (roll * dt);
+    
+    autopilot_output = (k_p * roll) + (k_i * integral_sum) + (k_d * gy);
+    
+    float x_pos; //= (analogRead(A1)/joystick_x_90) * 90; //outputs 0 to 180 depending on the joystick position
     int x_joy;
 
-    double y_pos;
+    float y_pos;
     int y_joy;
+
+
+    //integral array for intagral control
 
     for (int i = 0; i < 10; i++) {
       x_joy = (analogRead(A1));
       y_joy = (analogRead(A2));
-      if ((x_joy > joystick_x_90 + 50) || (x_joy < joystick_x_90 - 50)) {
+      if ((x_joy > joystick_x_90 + 70) || (x_joy < joystick_x_90 - 70)) {
         x_pos = x_pos + ((x_joy*900)/joystick_x_90);
       } else { 
         x_pos = x_pos + (900);
       }
 
-      if ((y_joy > joystick_y_90 + 50) || (y_joy < joystick_y_90 - 50)) {
+      if ((y_joy > joystick_y_90 + 70) || (y_joy < joystick_y_90 - 70)) {
         y_pos = y_pos + ((y_joy*900)/joystick_y_90);
       } else { 
         y_pos = y_pos + (900);
@@ -87,13 +104,17 @@ void loop() {
     x_pos = x_pos/100;
     y_pos = y_pos/100;
 
-//    x_pos = x_pos + k_p*(roll);
-//    y_pos = y_pos + k_p*(roll);
+//    x_pos = 90; //x_pos + k_p*(roll);
+//    y_pos = 90; //y_pos + k_p*(roll);
+
+
+
+    
             
-    servoL.write(x_pos + k_p*(roll));
-    servoR.write(180 - x_pos + (k_p *(roll)));
-    servoU.write(y_pos + k_p *(roll));
-    servoD.write(180 - y_pos + (k_p *(roll)));
+    servoL.write(x_pos + autopilot_output);
+    servoR.write(180 - x_pos + autopilot_output);
+    servoU.write(y_pos + autopilot_output);
+    servoD.write(180 - y_pos + autopilot_output);
     //delay(10);
 
 
