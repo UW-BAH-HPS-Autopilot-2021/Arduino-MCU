@@ -1,7 +1,6 @@
 
 
 #include <Servo.h>
-//#include <Arduino_LSM9DS1.h>
 #include <AHRS_Nano33BLE_LSM9DS1.h> 
 
 int myLed  = 11;
@@ -18,14 +17,16 @@ int x_joy;
 float y_pos;
 int y_joy;
 float x, y, z;
+int pos = 0;
+float JOYSTICK_SENSITIVITY = 0.25; // a value of 1 gives 90 degrees of control
 
-//Autopilot variables
+//Autopilot Variables
 float integral_sum = 0;
 float dt;
 float roll_rate;
 float current_roll;
 float autopilot_output;
-float k_p = 25;
+float k_p = 5;
 float k_i = 0.1;
 float k_d = 10;
 
@@ -35,13 +36,19 @@ float gx, gy, gz, ax, ay, az, mx, my, mz;
 float deltat;
 float temperature;
 
-int pos = 0;    // variable to store the servo position
+
+//Method Instantiations
+void initializeSF();
+void calibrateIMU();
+void updateIMU();
+void serialDiagnostics();
+void SDcardDiagnostics();
 
 void setup() {
-    servoL.attach(9);  // attaches the servo on pin 9 to the servo object
-    servoR.attach(10);  
-    servoU.attach(5);  
-    servoD.attach(6);  
+    servoL.attach(9);   //top fin servo
+    servoR.attach(6);  //starboard fin servo
+    servoU.attach(5);   //bottom fin servo 
+    servoD.attach(3);   //port fin servo 
     //set up adc read pins
     joystick_x_90 = analogRead(A1);
     joystick_y_90 = analogRead(A2);
@@ -55,68 +62,22 @@ void setup() {
     while (!Serial);
     Serial.println("Waited for Serial.");
     
-    // Initialize LED pin
-    pinMode(myLed, OUTPUT);
-    digitalWrite(myLed, HIGH);
+    // Initialize Input Switches
+    pinMode(7, INPUT_PULLUP); //Calibrate
+    pinMode(8, INPUT_PULLUP); //Autopilot Engage
     
-    if (!IMU.start())
-    {
-      Serial.println("Failed to initialize IMU!");
-      while (1);
-    }
-    Serial.println("Perform gyro and accel self test.");
-    if (!IMU.selftestLSM9DS1())
-    {
-      Serial.println("Failed self test"); // check function of gyro and accelerometer via self test
-      while (1);
-    }
-    else
-    {  
-      Serial.println("LSM9DS1 is online and passed self test...");
-  
-      Serial.print("accel sensitivity is "); Serial.print(IMU.accelerationSensitivity()); Serial.println(" LSB/mg");
-      Serial.print("gyro sensitivity is "); Serial.print(IMU.gyroscopeSensitivity()); Serial.println(" LSB/mdps");
-      Serial.print("mag sensitivity is "); Serial.print(IMU.magnometerSensitivity()); Serial.println(" LSB/mGauss");
-  
-      Serial.println("Calibrate gyro and accel");
-      IMU.calibrateAccelGyro(); // Calibrate gyro and accelerometers, load biases in bias registers
-  
-      float* accelBias = IMU.getAccelBias();
-      float* gyroBias = IMU.getGyroBias();
-  
-      Serial.println("accel biases (mg)"); Serial.println(1000.*accelBias[0]); Serial.println(1000.*accelBias[1]); Serial.println(1000.*accelBias[2]);
-      Serial.println("gyro biases (dps)"); Serial.println(gyroBias[0]); Serial.println(gyroBias[1]); Serial.println(gyroBias[2]);
-  
-      IMU.calibrateMag();
-      float* magBias = IMU.getMagBias();
-      Serial.println("mag biases (mG)"); Serial.println(1000.*magBias[0]); Serial.println(1000.*magBias[1]); Serial.println(1000.*magBias[2]); 
-  
-      IMU.initLSM9DS1(); 
-      Serial.println("LSM9DS1 initialized for active data mode...."); // Initialize device for active mode read of acclerometer, gyroscope, and temperature
-  
-      Serial.println("Assumption is data is in the following format:");
-      Serial.println("uptime (milliseconds), roll (degrees), pitch (degrees), yaw (degrees), gyrotemperatureC (Celcius)");
-      Serial.println("Begin Outputting Data!");
-    } 
-  
+    initializeSF();
+
+
 }
 
 void loop() {
 
-    if (IMU.accelerometerReady()) {  // check if new accel data is ready  
-      IMU.readAccel(ax, ay, az);
-    } 
-  
-    if (IMU.gyroscopeReady()) {  // check if new gyro data is ready  
-      IMU.readGyro(gx, gy, gz);
+    if (digitalRead(7)) {
+      calibrateIMU();
     }
-  
-    if (IMU.magnometerReady()) {  // check if new mag data is ready  
-      IMU.readMag(mx, my, mz);
-    }
-  
-    deltat = IMU.updateDeltat(); //this have to be done before calling the fusion update
-    IMU.MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, -mx, my, mz, deltat);
+
+    updateIMU();
   
     roll = IMU.rollDegrees();    //you could also use rollRadians()
     pitch = IMU.pitchDegrees();
@@ -151,8 +112,10 @@ void loop() {
         y_pos = y_pos + (900);
       }
     }
-    x_pos = 90; //x_pos/100;
-    y_pos = 90; //y_pos/100;
+    x_pos = (((x_pos/100) - 90) * JOYSTICK_SENSITIVITY) + 90;
+    y_pos = (((y_pos/100) - 90) * JOYSTICK_SENSITIVITY) + 90;
+
+    
 
 //    x_pos = 90; //x_pos + k_p*(roll);
 //    y_pos = 90; //y_pos + k_p*(roll);
@@ -163,20 +126,98 @@ void loop() {
     servoD.write(180 - y_pos + autopilot_output);
     //delay(10);
 
-  Serial.print(millis());
-  Serial.print(',');
-  Serial.print(" Roll: ");
-  Serial.print(roll);
-//  Serial.print(',');
-//  Serial.print(pitch);
-//  Serial.print(',');
-//  Serial.print(yaw);
-  Serial.print(',');
-  Serial.print(" Integral Sum: ");
-  Serial.print(integral_sum);
-  Serial.print(',');
-  Serial.print(" Autopilot Fin Angle: ");
-  Serial.println(autopilot_output);
-//  Serial.print(',');
-//  Serial.println(roll_rate);
+    serialDiagnostics();
+}
+
+
+
+void initializeSF() {
+    if (!IMU.start())
+    {
+      Serial.println("Failed to initialize IMU!");
+      while (1);
+    }
+    Serial.println("Perform gyro and accel self test.");
+    if (!IMU.selftestLSM9DS1())
+    {
+      Serial.println("Failed self test"); // check function of gyro and accelerometer via self test
+      while (1);
+    }
+    else
+    {  
+      Serial.println("LSM9DS1 is online and passed self test...");
+  
+      Serial.print("accel sensitivity is "); Serial.print(IMU.accelerationSensitivity()); Serial.println(" LSB/mg");
+      Serial.print("gyro sensitivity is "); Serial.print(IMU.gyroscopeSensitivity()); Serial.println(" LSB/mdps");
+      Serial.print("mag sensitivity is "); Serial.print(IMU.magnometerSensitivity()); Serial.println(" LSB/mGauss");
+      calibrateIMU();
+    }
+}
+
+void calibrateIMU() {
+    Serial.println("Calibrate gyro and accel");
+    IMU.calibrateAccelGyro(); // Calibrate gyro and accelerometers, load biases in bias registers
+
+    float* accelBias = IMU.getAccelBias();
+    float* gyroBias = IMU.getGyroBias();
+
+    Serial.println("accel biases (mg)"); Serial.println(1000.*accelBias[0]); Serial.println(1000.*accelBias[1]); Serial.println(1000.*accelBias[2]);
+    Serial.println("gyro biases (dps)"); Serial.println(gyroBias[0]); Serial.println(gyroBias[1]); Serial.println(gyroBias[2]);
+
+    IMU.calibrateMag();
+    float* magBias = IMU.getMagBias();
+    Serial.println("mag biases (mG)"); Serial.println(1000.*magBias[0]); Serial.println(1000.*magBias[1]); Serial.println(1000.*magBias[2]); 
+
+    IMU.initLSM9DS1(); 
+    Serial.println("LSM9DS1 initialized for active data mode...."); // Initialize device for active mode read of acclerometer, gyroscope, and temperature
+
+    Serial.println("Assumption is data is in the following format:");
+    Serial.println("uptime (milliseconds), roll (degrees), pitch (degrees), yaw (degrees), gyrotemperatureC (Celcius)");
+    Serial.println("Begin Outputting Data!");
+
+    integral_sum = 0.0;
+    deltat = IMU.updateDeltat(); //this have to be done before calling the fusion update
+}
+
+void updateIMU() {
+    
+  
+    if (IMU.accelerometerReady()) {  // check if new accel data is ready  
+      IMU.readAccel(ax, ay, az);
+    } 
+  
+    if (IMU.gyroscopeReady()) {  // check if new gyro data is ready  
+      IMU.readGyro(gx, gy, gz);
+    }
+  
+    if (IMU.magnometerReady()) {  // check if new mag data is ready  
+      IMU.readMag(mx, my, mz);
+    }
+  
+    deltat = IMU.updateDeltat(); //this have to be done before calling the fusion update
+    IMU.MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, -mx, my, mz, deltat);
+}
+
+void serialDiagnostics() {
+    Serial.print(millis());
+    Serial.print(',');
+    Serial.print(" Roll: ");
+    Serial.print(roll);
+  //  Serial.print(',');
+  //  Serial.print(pitch);
+  //  Serial.print(',');
+  //  Serial.print(yaw);
+    Serial.print(',');
+    Serial.print(" Integral Sum: ");
+    Serial.print(integral_sum);
+    Serial.print(',');
+    Serial.print(" Autopilot Fin Angle: ");
+    Serial.println(autopilot_output);
+  //  Serial.print(',');
+  //  Serial.println(roll_rate);
+}
+
+
+void SDcardDiagnostics() {
+  
 }
