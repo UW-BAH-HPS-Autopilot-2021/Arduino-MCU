@@ -1,7 +1,8 @@
-
-
+//#include <ServoTimer2.h>
 #include <Servo.h>
 #include <AHRS_Nano33BLE_LSM9DS1.h> 
+
+
 
 int myLed  = 11;
 
@@ -10,6 +11,12 @@ Servo servoL;
 Servo servoU;
 Servo servoR;
 Servo servoD;
+
+//ServoTimer2 servoL;
+//ServoTimer2 servoU;
+//ServoTimer2 servoR;
+//ServoTimer2 servoD;
+
 int joystick_x_90;
 int joystick_y_90;
 float x_pos;
@@ -57,23 +64,19 @@ void setup() {
     y = 0;
     z = 0;
     
-    //IMU Start
-    Serial.begin(38400);
-    while (!Serial);
-    Serial.println("Waited for Serial.");
-    
+
     // Initialize Input Switches
     pinMode(7, INPUT_PULLUP); //Calibrate
     pinMode(8, INPUT_PULLUP); //Autopilot Engage
     
-    initializeSF();
+    initializeSF(); //initialize sensor fusion
 
 
 }
 
 void loop() {
 
-    if (digitalRead(7)) {
+    if (!digitalRead(7)) {
       calibrateIMU();
     }
 
@@ -132,6 +135,11 @@ void loop() {
 
 
 void initializeSF() {
+    //IMU Start
+    Serial.begin(38400);
+    while (!Serial);
+    Serial.println("Waited for Serial.");
+  
     if (!IMU.start())
     {
       Serial.println("Failed to initialize IMU!");
