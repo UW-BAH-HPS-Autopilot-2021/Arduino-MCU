@@ -1,7 +1,21 @@
 //#include <ServoTimer2.h>
 #include <Servo.h>
 #include <AHRS_Nano33BLE_LSM9DS1.h> 
+#include <Arduino.h>
+#include <U8g2lib.h>
 
+#ifdef U8X8_HAVE_HW_I2C
+#include <Wire.h>
+#endif
+
+// U8g2 Contructor List (Picture Loop Page Buffer)
+// The complete list is available here: https://github.com/olikraus/u8g2/wiki/u8g2setupcpp
+
+//U8G2_SSD1327_EA_W128128_1_SW_I2C u8g2(U8G2_R0, /* clock=*/ 5, /* data=*/ 4, /* reset=*/ U8X8_PIN_NONE);
+//U8G2_SSD1327_EA_W128128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
+U8G2_SSD1327_MIDAS_128X128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
+
+// End of constructor list
 
 
 int myLed  = 11;
@@ -52,6 +66,7 @@ void serialDiagnostics();
 void SDcardDiagnostics();
 
 void setup() {
+    //Initialize Servo PWM
     servoL.attach(9);   //top fin servo
     servoR.attach(6);  //starboard fin servo
     servoU.attach(5);   //bottom fin servo 
@@ -64,14 +79,22 @@ void setup() {
     y = 0;
     z = 0;
     
-
     // Initialize Input Switches
     pinMode(7, INPUT_PULLUP); //Calibrate
     pinMode(8, INPUT_PULLUP); //Autopilot Engage
-    
-    initializeSF(); //initialize sensor fusion
 
+    //initialize sensor fusion
+    initializeSF(); 
 
+    //Initialize Diagnostic I2C Display
+    u8g2.begin();
+    u8x8_cad_StartTransfer(u8g2.getU8x8());
+    u8x8_cad_SendCmd( u8g2.getU8x8(), 0xbe);
+    u8x8_cad_SendArg( u8g2.getU8x8(), 15);    // Max Brightness (VCOM)
+    u8x8_cad_EndTransfer(u8g2.getU8x8()); 
+    u8g2.setFont(u8g2_font_fub17_tf); 
+    u8g2.setContrast(0xFF); //Max Brightness (Contrast)
+    u8g2.setBusClock(400000);
 }
 
 void loop() {

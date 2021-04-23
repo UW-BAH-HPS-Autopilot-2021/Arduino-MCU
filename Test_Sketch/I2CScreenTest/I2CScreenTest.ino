@@ -68,10 +68,10 @@
 //U8G2_SSD1327_EA_W128128_1_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_EA_W128128_1_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_EA_W128128_1_SW_I2C u8g2(U8G2_R0, /* clock=*/ 5, /* data=*/ 4, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1327_EA_W128128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
+//U8G2_SSD1327_EA_W128128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
 //U8G2_SSD1327_MIDAS_128X128_1_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_MIDAS_128X128_1_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
-//U8G2_SSD1327_MIDAS_128X128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
+U8G2_SSD1327_MIDAS_128X128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
 //U8G2_SSD1327_WS_128X128_1_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_WS_128X128_1_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_VISIONOX_128X96_1_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
@@ -90,10 +90,11 @@ void setup(void) {
   u8x8_cad_SendArg( u8g2.getU8x8(), 15);    // vcomh value from 0 to 7
   u8x8_cad_EndTransfer(u8g2.getU8x8()); 
   u8g2.setFont(u8g2_font_fub17_tf); 
+  u8g2.setContrast(0xF);
 }
 
 void loop(void) {
-  u8g2.firstPage();
+//  u8g2.firstPage();
 //  do {
 //    u8g2.setCursor(0, 20);
 //    u8g2.print(F("Autopilot ON"));
@@ -102,14 +103,22 @@ void loop(void) {
 //    u8g2.setCursor(0, 80);  
 //    u8g2.print(F("15.4V, 5.04V"));
 //  } while ( u8g2.nextPage() );
-  
-  do {
 
+  int i;
+  for (i = 0; i < 16; i++) {
+    u8g2.setContrast(i*16);
+    u8g2.firstPage();
+    do {
     u8g2.setCursor(0, 50);
-    u8g2.print(F("CALIBRATE"));    
-    u8g2.setCursor(20, 80);  
-    u8g2.print(F("ACTIVE"));
-  } while ( u8g2.nextPage() );
+    u8g2.setFont(u8g2_font_fub17_tf); 
+    u8g2.print(F("CALIBRATE")); 
+    u8g2.setFont(u8g2_font_fub11_tf);    
+    u8g2.setCursor(0, 80);  
+    u8g2.print("Number = ");
+    u8g2.print(u8x8_u8toa(i, 2));
+    } while ( u8g2.nextPage() );
+  }
+
 //  u8g2.firstPage();
 //  do {
 //    u8g2.setCursor(0, 80);
