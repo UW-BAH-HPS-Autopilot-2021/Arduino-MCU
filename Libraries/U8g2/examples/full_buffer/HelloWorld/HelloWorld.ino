@@ -112,7 +112,7 @@
 //U8G2_SSD1327_EA_W128128_F_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_EA_W128128_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_EA_W128128_F_SW_I2C u8g2(U8G2_R0, /* clock=*/ 5, /* data=*/ 4, /* reset=*/ U8X8_PIN_NONE);
-//U8G2_SSD1327_EA_W128128_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);  /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
+U8G2_SSD1327_EA_W128128_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);  /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
 //U8G2_SSD1327_MIDAS_128X128_F_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/ 13, /* data=*/ 11, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_MIDAS_128X128_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ 10, /* dc=*/ 9, /* reset=*/ 8);
 //U8G2_SSD1327_MIDAS_128X128_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
@@ -284,17 +284,32 @@
 
 
 // End of constructor list
-
+int i;
+int t, t1, t2;
 
 void setup(void) {
-  u8g2.begin();
+    Serial.begin(9600);
+    while (!Serial);
+    u8g2.begin();
+    u8x8_cad_StartTransfer(u8g2.getU8x8());
+    u8x8_cad_SendCmd( u8g2.getU8x8(), 0xbe);
+    u8x8_cad_SendArg( u8g2.getU8x8(), 15);    // Max Brightness (VCOM)
+    u8x8_cad_EndTransfer(u8g2.getU8x8()); 
+    u8g2.setFont(u8g2_font_fub17_tf); 
+    u8g2.setContrast(0xFF); //Max Brightness (Contrast)
+    u8g2.setBusClock(32000000);
 }
 
 void loop(void) {
-  u8g2.clearBuffer();					// clear the internal memory
-  u8g2.setFont(u8g2_font_ncenB08_tr);	// choose a suitable font
-  u8g2.drawStr(0,10,"Hello World!");	// write something to the internal memory
-  u8g2.sendBuffer();					// transfer internal memory to the display
-  delay(1000);  
+  for (i=10; i<100; i=i+10) {
+    u8g2.clearBuffer();					// clear the internal memory
+    u8g2.setFont(u8g2_font_ncenB14_tr);	// choose a suitable font
+    u8g2.drawStr(0,i,"Hello World!");	// write something to the internal memory
+    t1 = millis();
+    u8g2.sendBuffer();					// transfer internal memory to the display
+    t2 = millis();
+    t = t2 - t1;
+    Serial.println(t);
+    delay(1000);  
+  }
 }
-
