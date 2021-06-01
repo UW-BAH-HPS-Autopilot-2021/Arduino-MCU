@@ -21,7 +21,9 @@
 
 //U8G2_SSD1327_EA_W128128_1_SW_I2C u8g2(U8G2_R0, /* clock=*/ 5, /* data=*/ 4, /* reset=*/ U8X8_PIN_NONE);
 //U8G2_SSD1327_EA_W128128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
-U8G2_SSD1327_MIDAS_128X128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
+//U8G2_SSD1327_MIDAS_128X128_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); /* Uno: A4=SDA, A5=SCL, add "u8g2.setBusClock(400000);" into setup() for speedup if possible */
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 // End of constructor list
 
@@ -69,13 +71,14 @@ float temperature;
 float V_BATT;
 float V_5V; 
 float V_3V3;
+float percent_batt;
 
 //Display Variables
 int prev_time;
 
 //SD Card Variables
 File ddata;
-String file = "datalog2.txt";
+String file = "hello21.txt"; 
 
 //Method Instantiations
 void initializeSF();
@@ -90,12 +93,13 @@ void SDcardDiagnostics();
 void diagnosticDisplay();
 void voltageMonitoring();
 void errorCode(int blinkNum);
-
+void joystick_control();
 
 
 void setup() {
     //initialize SD card Diagnostics
     initializeSDCard();
+    ddata.flush();
     
     //Initialize Servo PWM
     servoL.attach(9);   //top fin servo
@@ -103,9 +107,11 @@ void setup() {
     servoU.attach(5);   //bottom fin servo 
     servoD.attach(3);   //port fin servo 
     ddata.println("ServoPWM: GO");
+    ddata.flush();
     
     //set up adc read pins
     initializeAnalogJoystick();
+    ddata.flush();
     
     // Initialize Input Switches
     pinMode(7, INPUT_PULLUP); //Calibrate
@@ -121,6 +127,14 @@ void setup() {
     u8g2.setContrast(0xFF); //Max Brightness (Contrast)
     u8g2.setBusClock(400000);
     ddata.println("Diagnostic Display: GO");
+    ddata.flush();
+  
+    voltageMonitoring();
+    ddata.print(percent_batt);
+    ddata.print("% Battery: ");
+    ddata.print(V_BATT);
+    ddata.println("V");
+    ddata.flush();
 
     //initialize sensor fusion
     //initializeSF();
@@ -145,43 +159,25 @@ void loop() {
       calibrateIMU_SD();
     }
 
-    updateIMU();
-  
-    roll = IMU.rollDegrees();    //you could also use rollRadians()
-    pitch = IMU.pitchDegrees();
-    yaw = IMU.yawDegrees();
-    temperature = IMU.readTempC();
+      updateIMU();
     
-    current_roll = roll * (3.1415926 / 180);
-    integral_sum = integral_sum + (current_roll * deltat);
-    roll_rate = gy * (3.1415926 / 180);
-    
-    autopilot_output = (k_p * current_roll) + (k_i * integral_sum) + (k_d * roll_rate);
-    
+      roll = IMU.rollDegrees();    //you could also use rollRadians()
+      pitch = IMU.pitchDegrees();
+      yaw = IMU.yawDegrees();
+      temperature = IMU.readTempC();
+      
+      current_roll = roll * (3.1415926 / 180);
+      integral_sum = integral_sum + (current_roll * deltat);
+      roll_rate = gy * (3.1415926 / 180);
 
 
-
-    //Record and average 10 values of joystick control
-    x_pos = 0;
-    y_pos = 0; 
-    for (int i = 0; i < 10; i++) {
-      x_joy = (analogRead(A1));
-      y_joy = (analogRead(A2));
-      if ((x_joy > joystick_x_90 + 70) || (x_joy < joystick_x_90 - 70)) {
-        x_pos = x_pos + ((x_joy*900)/joystick_x_90);
-      } else { 
-        x_pos = x_pos + (900);
-      }
-
-      if ((y_joy > joystick_y_90 + 70) || (y_joy < joystick_y_90 - 70)) {
-        y_pos = y_pos + ((y_joy*900)/joystick_y_90);
-      } else { 
-        y_pos = y_pos + (900);
-      }
+    if (!digitalRead(8)) { //If autopilot is enabled
+      autopilot_output = 0;     
+    } else {   
+      autopilot_output = (k_p * current_roll) + (k_i * integral_sum) + (k_d * roll_rate);
     }
-    x_pos = (((x_pos/100) - 90) * JOYSTICK_SENSITIVITY) + 90;
-    y_pos = (((y_pos/100) - 90) * JOYSTICK_SENSITIVITY) + 90;
-    
+
+    joystick_control();
 
 //    x_pos = 90; //x_pos + k_p*(roll);
 //    y_pos = 90; //y_pos + k_p*(roll);
@@ -194,19 +190,18 @@ void loop() {
 
     //serialDiagnostics();
     voltageMonitoring();
-    //SDcardDiagnostics();
+    SDcardDiagnostics();
 
     //limit dispaly refresh to 1hz to maintain cpu performance
-    int current_time = int(millis()/1000);
+    int current_time = int(millis()/10000);
     if (current_time > prev_time) {
       prev_time = current_time;
-
+      
       //diagnosticDisplay();
-      SDcardDiagnostics();
-      ddata.print("ddata close: "); ddata.println(millis());
-      ddata.close(); //Save to SD Card 
-      ddata = SD.open(file, FILE_WRITE);
-      ddata.print("ddata open: "); ddata.println(millis());
+      
+      //ddata.print("ddata close: "); ddata.println(millis());
+      ddata.flush();
+      //ddata.print("ddata open: "); ddata.println(millis());
       
     }
     //ddata.print("ddata close: ");
@@ -223,10 +218,10 @@ void initializeSF() {
     //Print to Display
     u8g2.firstPage();
     do {
-    u8g2.setCursor(15, 50);
+    u8g2.setCursor(15, 25);
     u8g2.setFont(u8g2_font_fub11_tf); 
     u8g2.print(F("BEGIN SERIAL")); 
-    u8g2.setCursor(25, 80);
+    u8g2.setCursor(25, 60);
     u8g2.print(F("STARTUP")); 
     } while ( u8g2.nextPage() );
   
@@ -262,10 +257,10 @@ void initializeSF_SD() {
     //Print to Display
     u8g2.firstPage();
     do {
-    u8g2.setCursor(3, 50);
+    u8g2.setCursor(3, 30);
     u8g2.setFont(u8g2_font_fub11_tf); 
     u8g2.print(F("BEGIN SDCARD")); 
-    u8g2.setCursor(25, 80);
+    u8g2.setCursor(25, 63);
     u8g2.print(F("STARTUP")); 
     } while ( u8g2.nextPage() );
   
@@ -382,11 +377,19 @@ void calibrateIMU_SD() {
     //Print to Display
     u8g2.firstPage();
     do {
-    u8g2.setCursor(0, 50);
-    u8g2.setFont(u8g2_font_fub17_tf); 
-    u8g2.print(F("CALIBRATE")); 
-    u8g2.setCursor(20, 80);
-    u8g2.print(F("ACTIVE")); 
+      u8g2.setCursor(0, 15);
+      u8g2.setFont(u8g2_font_fub11_tf); 
+      u8g2.print(u8x8_u8toa(int(V_BATT), 2));
+      u8g2.print(".");
+      u8g2.print(u8x8_u8toa((int(V_BATT * 100) % 100), 2));
+      u8g2.print("V        ");
+      u8g2.print(u8x8_u8toa((int(percent_batt)), 2));
+      u8g2.print("%");
+      u8g2.setFont(u8g2_font_fub17_tf);    
+      u8g2.setCursor(0, 39);  
+      u8g2.print("CALIBRATE");
+      u8g2.setCursor(20, 63);  
+      u8g2.print("ACTIVE");
     } while ( u8g2.nextPage() );
    
     ddata.println("Calibrate gyro and accel");
@@ -410,7 +413,29 @@ void calibrateIMU_SD() {
     ddata.println("Begin Outputting Data!");
 
     integral_sum = 0.0;
+
+    u8g2.firstPage();
+    do {
+      u8g2.setCursor(0, 15);
+      u8g2.setFont(u8g2_font_fub11_tf); 
+      u8g2.print(u8x8_u8toa(int(V_BATT), 2));
+      u8g2.print(".");
+      u8g2.print(u8x8_u8toa((int(V_BATT * 100) % 100), 2));
+      u8g2.print("V        ");
+      u8g2.print(u8x8_u8toa(int(percent_batt), 2));
+      u8g2.print("%");
+      u8g2.setFont(u8g2_font_fub17_tf);    
+      u8g2.setCursor(0, 39);  
+      u8g2.print("Autopilot");
+      u8g2.setCursor(20, 63);  
+      u8g2.print("ACTIVE");
+    } while ( u8g2.nextPage() );
+
+    
     deltat = IMU.updateDeltat(); //this have to be done before calling the fusion update
+
+
+    
 }
 
 void updateIMU() {
@@ -451,32 +476,34 @@ void serialDiagnostics() {
   //  Serial.println(roll_rate);
 }
 
-
+//Creates a CSV file and stores the data to the external SD card
 void SDcardDiagnostics() {
     ddata.print(millis());
     ddata.print(',');
-    ddata.print(" Roll: ");
+  //  ddata.print(" Roll: ");
     ddata.print(roll);
-  //  Serial.print(',');
-  //  Serial.print(pitch);
-  //  Serial.print(',');
-  //  Serial.print(yaw);
     ddata.print(',');
-    ddata.print(" Integral Sum: ");
+    ddata.print(az);
+    ddata.print(',');
+    ddata.print(pitch);
+    ddata.print(',');
+    ddata.print(yaw);
+    ddata.print(',');
+  //  ddata.print(" Integral Sum: ");
     ddata.print(integral_sum);
     ddata.print(',');
-    ddata.print(" Autopilot Fin Angle: ");
+  //  ddata.print(" Autopilot Fin Angle: ");
     ddata.print(autopilot_output);
-  //  Serial.print(',');
-  //  Serial.println(roll_rate);
     ddata.print(',');
-    ddata.print(" VBATT: ");
+    ddata.print(roll_rate);
+    ddata.print(',');
+  //  ddata.print(" VBATT: ");
     ddata.print(V_BATT);
     ddata.print(',');
-    ddata.print(" 5V: ");
+  //  ddata.print(" 5V: ");
     ddata.print(V_5V);
     ddata.print(',');
-    ddata.print(" 3.3V: ");
+  //  ddata.print(" 3.3V: ");
     ddata.println(V_3V3);
     
 }
@@ -548,6 +575,8 @@ void voltageMonitoring() {
     V_5V = V_5V_IN * (104e3 + 47.2e3) / 47.2e3;
     V_3V3 = V_3V3_IN * (102e3 + 47.3e3) / 47.3e3;
 
+    percent_batt = ((V_BATT - 9.0) / 3.6) * 100.0;
+
 }
 
 void errorCode(int blinkNum) {
@@ -562,3 +591,26 @@ void errorCode(int blinkNum) {
     delay(1000);
     
 }
+
+void joystick_control() {
+    //Record and average 10 values of joystick control
+    x_pos = 0;
+    y_pos = 0; 
+    for (int i = 0; i < 10; i++) {
+      x_joy = (analogRead(A1));
+      y_joy = (analogRead(A2));
+      if ((x_joy > joystick_x_90 + 70) || (x_joy < joystick_x_90 - 70)) {
+        x_pos = x_pos + ((x_joy*900)/joystick_x_90);
+      } else { 
+        x_pos = x_pos + (900);
+      }
+
+      if ((y_joy > joystick_y_90 + 70) || (y_joy < joystick_y_90 - 70)) {
+        y_pos = y_pos + ((y_joy*900)/joystick_y_90);
+      } else { 
+        y_pos = y_pos + (900);
+      }
+    }
+    x_pos = (((x_pos/100) - 90) * JOYSTICK_SENSITIVITY) + 90;
+    y_pos = (((y_pos/100) - 90) * JOYSTICK_SENSITIVITY) + 90;
+}   
