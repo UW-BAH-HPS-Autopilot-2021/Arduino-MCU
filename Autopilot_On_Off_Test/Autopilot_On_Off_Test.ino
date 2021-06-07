@@ -28,7 +28,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 // End of constructor list
 
 
-int myLed  = 11;
+int myLED  = 10;
 
 //Joystick Variables
 Servo servoL;
@@ -99,24 +99,14 @@ void joystick_control();
 
 void setup() {
     //initialize SD card Diagnostics
-    initializeSDCard();
-    ddata.flush();
-    
-    //Initialize Servo PWM
-    servoL.attach(9);   //top fin servo
-    servoR.attach(6);  //starboard fin servo
-    servoU.attach(5);   //bottom fin servo 
-    servoD.attach(3);   //port fin servo 
-    ddata.println("ServoPWM: GO");
-    ddata.flush();
-    
-    //set up adc read pins
-    initializeAnalogJoystick();
-    ddata.flush();
-    
+   
     // Initialize Input Switches
     pinMode(7, INPUT_PULLUP); //Calibrate
     pinMode(8, INPUT_PULLUP); //Autopilot Engage
+    pinMode(myLED, OUTPUT);
+    digitalWrite(myLED, HIGH);
+    delay(500);
+    digitalWrite(myLED, LOW);
 
     //Initialize Diagnostic I2C Display
     u8g2.begin();
@@ -127,115 +117,87 @@ void setup() {
     u8g2.setFont(u8g2_font_fub17_tf); 
     u8g2.setContrast(0xFF); //Max Brightness (Contrast)
     u8g2.setBusClock(400000);
-    ddata.println("Diagnostic Display: GO");
-    ddata.flush();
+
   
     voltageMonitoring();
-    ddata.print(percent_batt);
-    ddata.print("% Battery: ");
-    ddata.print(V_BATT);
-    ddata.println("V");
-    ddata.flush();
+    
+//    u8g2.firstPage();
+//    do {
+//      u8g2.setCursor(0, 15);
+//      u8g2.setFont(u8g2_font_fub11_tf); 
+//      u8g2.print(u8x8_u8toa(int(V_BATT), 2));
+//      u8g2.print(".");
+//      u8g2.print(u8x8_u8toa((int(V_BATT * 100) % 100), 2));
+//      u8g2.print("V        ");
+//      u8g2.print(u8x8_u8toa(int(percent_batt), 2));
+//      u8g2.print("%"); 
+//      u8g2.setFont(u8g2_font_fub17_tf);    
+//      u8g2.setCursor(0, 39);  
+//      u8g2.print("Autopilot");
+//      u8g2.setCursor(25, 63);  
+//      u8g2.print("OFF");
+//    } while ( u8g2.nextPage() );
 
-    //initialize sensor fusion
-    //initializeSF();
-    initializeSF_SD(); 
 
-    prev_time = 0;
-
-    ddata.close();
-    ddata = SD.open(file, FILE_WRITE);
-
-    autopilot_on = false;
+    //is Autopilot enabled
+    if (!digitalRead(8)) {
+      autopilot_on = true;
+    } else {
+      autopilot_on = false;
+    }
 
 }
 
 void loop() {
-
-//    ddata = SD.open(file, FILE_WRITE);  //open sdcard write file
-//    ddata.print("ddata opened: ");
-//    ddata.println(millis());
-
-    
-    if (!digitalRead(7)) {
-      //calibrateIMU();
-      calibrateIMU_SD();
-    }
-
-    updateIMU();
   
-    roll = IMU.rollDegrees();    //you could also use rollRadians()
-    pitch = IMU.pitchDegrees();
-    yaw = IMU.yawDegrees();
-    temperature = IMU.readTempC();
+//  if (digitalRead(8)) {
+//    digitalWrite(myLED, LOW);
+//  } else {
+//    digitalWrite(myLED, HIGH);
+//  }
+
     
-    current_roll = roll * (3.1415926 / 180);
-    integral_sum = integral_sum + (current_roll * deltat);
-    roll_rate = gy * (3.1415926 / 180);
 
-
-    if (digitalRead(8)) { //If autopilot is disabled
-      autopilot_output = 0;
-      digitalWrite(myLED, LOW);
-      if (autopilot_on) { 
-        autopilot_on = false;
-        u8g2.firstPage();
-        do {
-          u8g2.setCursor(0, 15);
-          u8g2.setFont(u8g2_font_fub11_tf); 
-          u8g2.print(u8x8_u8toa(int(V_BATT), 2));
-          u8g2.print(".");
-          u8g2.print(u8x8_u8toa((int(V_BATT * 100) % 100), 2));
-          u8g2.print("V        ");
-          u8g2.print(u8x8_u8toa(int(percent_batt), 2));
-          u8g2.print("%"); 
-          u8g2.setFont(u8g2_font_fub35_tf);    
-          u8g2.setCursor(15, 60);  
-          u8g2.print("OFF");
-        } while ( u8g2.nextPage() );
-      }
-  } else { //if autopilot is enabled
-      autopilot_output = (k_p * current_roll) + (k_i * integral_sum) + (k_d * roll_rate);
-      digitalWrite(myLED, HIGH);
-      if (!autopilot_on) {
-        autopilot_on = true;
-        u8g2.firstPage();
-        do {
-          u8g2.setCursor(0, 15);
-          u8g2.setFont(u8g2_font_fub11_tf); 
-          u8g2.print(u8x8_u8toa(int(V_BATT), 2));
-          u8g2.print(".");
-          u8g2.print(u8x8_u8toa((int(V_BATT * 100) % 100), 2));
-          u8g2.print("V        ");
-          u8g2.print(u8x8_u8toa(int(percent_batt), 2));
-          u8g2.print("%");  
-          u8g2.setFont(u8g2_font_fub25_tf);    
-          u8g2.setCursor(0, 60);    
-          u8g2.print("ACTIVE");
-        } while ( u8g2.nextPage() );              
-      }
+  if (digitalRead(8)) { //If autopilot is enabled
+    autopilot_output = 0;
+    digitalWrite(myLED, LOW);
+    if (autopilot_on) { 
+      autopilot_on = false;
+      u8g2.firstPage();
+      do {
+        u8g2.setCursor(3, 30);
+        u8g2.setFont(u8g2_font_fub11_tf); 
+        u8g2.print(F("BEGIN SDCARD")); 
+        u8g2.setCursor(25, 63);
+        u8g2.print(F("STARTUP")); 
+      } while ( u8g2.nextPage() );
+    }
+  } else {
+    autopilot_output = (k_p * current_roll) + (k_i * integral_sum) + (k_d * roll_rate);
+    digitalWrite(myLED, HIGH);
+    if (!autopilot_on) {
+      autopilot_on = true;
+      u8g2.firstPage();
+      u8g2.firstPage();
+      do {
+        u8g2.setCursor(0, 15);
+        u8g2.setFont(u8g2_font_fub11_tf); 
+        u8g2.print(u8x8_u8toa(int(V_BATT), 2));
+        u8g2.print(".");
+        u8g2.print(u8x8_u8toa((int(V_BATT * 100) % 100), 2));
+        u8g2.print("V        ");
+        u8g2.print(u8x8_u8toa((int(percent_batt)), 2));
+        u8g2.print("%");
+        u8g2.setFont(u8g2_font_fub17_tf);    
+        u8g2.setCursor(0, 39);  
+        u8g2.print("CALIBRATE");
+        u8g2.setCursor(20, 63);  
+        u8g2.print("ACTIVE");
+      } while ( u8g2.nextPage() );  
+    }
   }
 
-  joystick_control();
-            
-  servoL.write(x_pos + autopilot_output);
-  servoR.write(180 - x_pos + autopilot_output);
-  servoU.write(y_pos + autopilot_output);
-  servoD.write(180 - y_pos + autopilot_output);
-  //delay(10);
-
-  //serialDiagnostics();
-  voltageMonitoring();
-  SDcardDiagnostics();
-
-  //limit SD card refresh to 0.1hz to maintain cpu performance
-  int current_time = int(millis()/10000);
-  if (current_time > prev_time) {
-    prev_time = current_time;
-    ddata.flush();   
-  }
-
-
+  //delay(100);
     
 }
 
@@ -437,7 +399,7 @@ void calibrateIMU_SD() {
     ddata.println("LSM9DS1 IMU Calibration: GO"); // Initialize device for active mode read of acclerometer, gyroscope, and temperature
 
     ddata.println("Assumption is data is in the following format:");
-    ddata.println("uptime (milliseconds), roll (degrees), accelerometer (G'S), pitch (degrees), yaw (degrees), integral sum, controller fin angle output (degrees), roll rate (degrees per second), VBatt, 5V Rail, 3.3V Rail");
+    ddata.println("uptime (milliseconds), roll (degrees), pitch (degrees), yaw (degrees), gyrotemperatureC (Celcius)");
     ddata.println("Begin Outputting Data!");
 
     integral_sum = 0.0;
@@ -592,9 +554,10 @@ void voltageMonitoring() {
     int V_3V3_READ = analogRead(A3);
     
     // Convert the integer analog input (which goes from 0 - 1023) to input voltage at pin:
-    float V_BATT_IN = V_BATT_READ * 3.3 / 1023.0;
-    float V_5V_IN = V_5V_READ * 3.3 / 1023.0;
-    float V_3V3_IN = V_3V3_READ * 3.3 / 1023.0;
+    // 0.03 offset based on pin measurements with multimeter
+    float V_BATT_IN = 0.03 + V_BATT_READ * 3.3 / 1023.0;
+    float V_5V_IN = 0.03 + V_5V_READ * 3.3 / 1023.0;
+    float V_3V3_IN = 0.03 + V_3V3_READ * 3.3 / 1023.0;
     
     // Convert the pin voltage to original voltage based on measured divider values.
     // General formula: V = V_IN * (R1 + R2) / R1
@@ -608,11 +571,11 @@ void voltageMonitoring() {
 
 void errorCode(int blinkNum) {
     int i = 0;
-    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(myLED, OUTPUT);
     for (i=0; i<blinkNum; i++) {
-      digitalWrite(LED_BUILTIN, HIGH);
+      digitalWrite(myLED, HIGH);
       delay(150);
-      digitalWrite(LED_BUILTIN, LOW);
+      digitalWrite(myLED, LOW);
       delay(150);                
     }
     delay(1000);
